@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>YT Viewer Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>body{background:#0a0a0f;color:#e2e8f0}</style>
+</head>
+<body class="p-4 max-w-2xl mx-auto">
+<h1 class="text-2xl font-bold mb-1">📺 YT Viewer Dashboard</h1>
+<p class="text-gray-500 text-sm mb-4">Enter your tokens to connect</p>
+<div id="setup" class="bg-gray-800/50 rounded-xl p-4 mb-4">
+<div class="space-y-2">
+<div><label class="text-gray-400 text-xs">Railway Token</label><input id="rt" class="w-full mt-1 bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm" placeholder="Railway API token"/></div>
+<div><label class="text-gray-400 text-xs">GitHub Token</label><input id="gt" class="w-full mt-1 bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm" placeholder="GitHub PAT"/></div>
+<button onclick="saveTokens()" class="w-full bg-blue-600 hover:bg-blue-700 py-2 rounded-lg font-bold text-sm">Connect</button>
+</div>
+</div>
+<div id="app"></div>
+<script>
+const VSID="5e96b607-29b4-4025-a148-2c6b3eb59899";
+const PID="fb557282-4585-4e58-9856-584b783fa593";
+const EID="e3b643e5-4811-4797-8cf0-86df8633efeb";
+let RT=localStorage.getItem("rt")||"";
+let GT=localStorage.getItem("gt")||"";
+
+function saveTokens(){
+  RT=document.getElementById("rt").value;
+  GT=document.getElementById("gt").value;
+  localStorage.setItem("rt",RT);
+  localStorage.setItem("gt",GT);
+  document.getElementById("setup").style.display="none";
+  load();
+}
+if(RT&&GT){document.getElementById("setup").style.display="none";setTimeout(load,100);}
+
+async function gql(q,v){
+  const r=await fetch("https://backboard.railway.app/graphql/v2",{method:"POST",headers:{"Authorization":"Bearer "+RT,"Content-Type":"application/json"},body:JSON.stringify({query:q,variables:v})});
+  return r.json();
+}
+async function ghApi(p,m,b){
+  const o={method:m||"GET",headers:{"Authorization":"token "+GT,"Accept":"application/vnd.github.v3+json"}};
+  if(b){o.headers["Content-Type"]="application/json";o.body=JSON.stringify(b);}
+  return (await fetch("https://api.github.com"+p,o)).json();
+}
+
+async function load(){
+  if(!RT||!GT){document.getElementById("setup").style.display="block";return;}
+  try{
+    const [svc,vars,gh]=await Promise.all([
+      gql('query{service(id:"'+VSID+'"){deployments(first:1){edges{node{status createdAt}}}}}'),
+      gql('query{variablesForServiceInstance(serviceId:"'+VSID+'",environmentId:"'+EID+'")}'),
+      ghApi("/repos/fridayaeye/yt-viewer/actions/runs?per_page=5").catch(()=>({}))
+    ]);
+    const ev=vars?.data?.variablesForServiceInstance||{};
+    const dep=svc?.data?.service?.deployments?.edges?.[0]?.node;
+    const vid=ev.VIDEO_ID||"RouUT5ZgA7Q";
+    const runs=(gh?.workflow_runs||[]).slice(0,5);
+    
+    document.getElementById("app").innerHTML=`
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <div class="bg-gray-800/50 rounded-xl p-3 col-span-2">
+        <div class="text-gray-400 text-xs">Video</div>
+        <div class="font-bold text-lg">${vid}</div>
+        <img src="https://img.youtube.com/vi/${vid}/mqdefault.jpg" class="rounded mt-2 w-full"/>
+      </div>
+      <div class="bg-gray-800/50 rounded-xl p-3">
+        <div class="text-gray-400 text-xs">Workers</div>
+        <div class="text-3xl font-bold text-green-400">${ev.WORKERS||"?"}</div>
+      </div>
+      <div class="bg-gray-800/50 rounded-xl p-3">
+        <div class="text-gray-400 text-xs">Railway</div>
+        <div class="text-xl font-bold ${dep?.status==="SUCCESS"?"text-green-400":"text-red-400"}">${dep?.status||"?"}</div>
+      </div>
+      <div class="bg-gray-800/50 rounded-xl p-3">
+        <div class="text-gray-400 text-xs">Watch Time</div>
+        <div class="text-xl font-bold text-blue-400">${Math.round((ev.WATCH_TIME||0)/60)}m</div>
+      </div>
+      <div class="bg-gray-800/50 rounded-xl p-3">
+        <div class="text-gray-400 text-xs">Deploy</div>
+        <div class="text-xs text-gray-300">${dep?.createdAt?.substring(0,16)||"?"}</div>
+      </div>
+    </div>
+    <div class="bg-gray-800/50 rounded-xl p-3 mb-4">
+      <div class="text-gray-400 text-xs mb-2">GitHub Actions</div>
+      ${runs.map(r=>`<div class="flex justify-between text-xs py-1"><span>${r.conclusion==="success"?"✅":r.status==="in_progress"?"🔄":"❌"} ${r.name||"run"}</span><span class="text-gray-500">${new Date(r.created_at).toLocaleString()}</span></div>`).join("")||"<div class='text-gray-500 text-xs'>No runs</div>"}
+    </div>
+    <div class="bg-gray-800/50 rounded-xl p-3 mb-4">
+      <h2 class="font-bold mb-2">⚙️ Controls</h2>
+      <div class="space-y-2">
+        <div><label class="text-gray-400 text-xs">Video ID</label><input id="vid" value="${vid}" class="w-full mt-1 bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm"/></div>
+        <div><label class="text-gray-400 text-xs">Workers</label><input id="wk" type="number" value="${ev.WORKERS||50}" class="w-full mt-1 bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm"/></div>
+        <div><label class="text-gray-400 text-xs">Watch Time (sec)</label><input id="wt" type="number" value="${ev.WATCH_TIME||3960}" class="w-full mt-1 bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm"/></div>
+        <button onclick="updateDeploy()" class="w-full bg-blue-600 hover:bg-blue-700 py-2 rounded-lg font-bold text-sm">Update & Redeploy</button>
+      </div>
+      <div class="flex gap-2 mt-2">
+        <button onclick="triggerGH()" class="flex-1 bg-purple-600 hover:bg-purple-700 py-2 rounded-lg text-sm text-center">🚀 GitHub</button>
+        <button onclick="redeploy()" class="flex-1 bg-green-600 hover:bg-green-700 py-2 rounded-lg text-sm text-center">🔄 Redeploy</button>
+        <button onclick="localStorage.clear();location.reload()" class="flex-1 bg-red-600 hover:bg-red-700 py-2 rounded-lg text-sm text-center">🔑 Logout</button>
+      </div>
+    </div>`;
+  }catch(e){document.getElementById("app").innerHTML="<div class='text-red-400'>Error: "+e.message+"</div>";}
+}
+
+async function updateDeploy(){
+  const v={VIDEO_ID:document.getElementById("vid").value,WORKERS:document.getElementById("wk").value,WATCH_TIME:document.getElementById("wt").value};
+  await gql("mutation($i:VariableCollectionUpsertInput!){variableCollectionUpsert(input:$i)}",{i:{projectId:PID,serviceId:VSID,environmentId:EID,variables:v}});
+  await gql('mutation{serviceInstanceDeploy(serviceId:"'+VSID+'",environmentId:"'+EID+'")}');
+  alert("Updated!"); load();
+}
+async function triggerGH(){
+  await ghApi("/repos/fridayaeye/yt-viewer/actions/workflows/viewer.yml/dispatches","POST",{ref:"main"});
+  alert("Triggered!"); load();
+}
+async function redeploy(){
+  await gql('mutation{serviceInstanceDeploy(serviceId:"'+VSID+'",environmentId:"'+EID+'")}');
+  alert("Redeploying!"); load();
+}
+setInterval(load,30000);
+</script>
+</body></html>
