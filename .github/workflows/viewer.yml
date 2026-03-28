@@ -1,0 +1,37 @@
+name: YT Viewer
+on:
+  workflow_dispatch:
+  schedule:
+    # Run every 30 min, 24/7
+    - cron: '*/30 * * * *'
+
+jobs:
+  view:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        worker: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - run: pip install requests
+      
+      - name: Run viewer
+        env:
+          VIDEO_ID: RouUT5ZgA7Q
+          WATCH_TIME: 3960
+        run: |
+          echo "Worker ${{ matrix.worker }} starting..."
+          echo "IP: $(curl -s https://ipinfo.io/ip)"
+          # Each job runs 3 views (3 × 30 sec overhead + watch time simulation)
+          # Total ~5 min per job, well within 30 min schedule
+          for i in 1 2 3; do
+            python -u yt_curl_viewer.py $VIDEO_ID --views 1 --watch-time 30
+            echo "View $i done"
+            sleep 2
+          done
