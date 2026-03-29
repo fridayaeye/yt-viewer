@@ -58,20 +58,45 @@ signal.signal(signal.SIGTERM, handle_signal)
 
 
 # ── Xvfb ─────────────────────────────────────────────────────────────────────
+def xvfb_is_running():
+    """Check if Xvfb is already running on :99."""
+    try:
+        result = subprocess.run(['xdpyinfo', '-display', ':99'],
+                                capture_output=True, timeout=3)
+        return result.returncode == 0
+    except Exception:
+        return False
+
 def start_xvfb():
-    """Start Xvfb on :99 1080x1920x24. Returns process."""
-    print("🖥️  Starting Xvfb :99 (1080x1920x24)...", flush=True)
+    """Start Xvfb on :99 1080x1920x24. Returns process or None if already running."""
+    os.environ['DISPLAY'] = ':99'
+    
+    # Wait for supervisor's Xvfb to be ready (up to 15 seconds)
+    for attempt in range(15):
+        if xvfb_is_running():
+            print("🖥️  Xvfb already running on :99 (started by supervisor)", flush=True)
+            return None
+        # Also check if /tmp/.X99-lock exists (Xvfb creates this)
+        if os.path.exists('/tmp/.X99-lock'):
+            time.sleep(1)
+            if xvfb_is_running():
+                print("🖥️  Xvfb ready on :99", flush=True)
+                return None
+        print(f"⏳ Waiting for Xvfb... ({attempt+1}/15)", flush=True)
+        time.sleep(1)
+    
+    # If supervisor didn't start it, start our own
+    print("🖥️  Starting own Xvfb :99 (1080x1920x24)...", flush=True)
     proc = subprocess.Popen([
         'Xvfb', ':99',
         '-screen', '0', '1080x1920x24',
-        '-ac',        # disable access control
+        '-ac',
         '+extension', 'GLX',
     ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    time.sleep(2)
+    time.sleep(3)
     if proc.poll() is not None:
         print("❌ Xvfb failed to start!", flush=True)
         sys.exit(1)
-    os.environ['DISPLAY'] = ':99'
     print(f"✅ Xvfb PID {proc.pid}", flush=True)
     return proc
 
@@ -314,7 +339,7 @@ def main():
             err = ffmpeg.stderr.read().decode(errors='replace')[-1000:]
             print(f"❌ ffmpeg died on start!\n{err}", flush=True)
             browser.close()
-            xvfb_proc.terminate()
+            if xvfb_proc: xvfb_proc.terminate()
             sys.exit(1)
         print(f"✅ ffmpeg running (PID {ffmpeg.pid})", flush=True)
         print("🔴 LIVE — starting name loop", flush=True)
@@ -421,7 +446,7 @@ def main():
             except Exception:
                 pass
             try:
-                xvfb_proc.terminate()
+                if xvfb_proc: xvfb_proc.terminate()
             except Exception:
                 pass
             print("✅ Done.", flush=True)
