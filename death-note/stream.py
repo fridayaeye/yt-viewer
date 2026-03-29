@@ -8,7 +8,7 @@ except:
     requests = None
 
 STREAM_KEY    = os.environ.get('STREAM_KEY', 'adma-1e6s-e536-0jrf-2dg3')
-RTMP_URL      = f'rtmp://a.rtmp.youtube.com/live2/{STREAM_KEY}'
+RTMP_URL      = f'rtmps://a.rtmp.youtube.com/live2/{STREAM_KEY}'
 FPS           = int(os.environ.get('FPS', '5'))
 NAME_INTERVAL = int(os.environ.get('NAME_INTERVAL', '8'))
 YT_API_KEY    = os.environ.get('YOUTUBE_API_KEY', '')
