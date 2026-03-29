@@ -27,7 +27,7 @@ RUN pip install --no-cache-dir \
 RUN playwright install chromium \
     && playwright install-deps chromium
 
-# ── App files ─────────────────────────────────────────────────────────────────
+# ── App files (bust cache v3) ─────────────────────────────────────────────────
 WORKDIR /app
 
 COPY stream.py           /app/stream.py
