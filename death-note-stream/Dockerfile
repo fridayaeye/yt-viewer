@@ -5,26 +5,17 @@
 FROM python:3.11-slim-bookworm
 
 # ── System packages ────────────────────────────────────────────────────────────
-# Install everything in one layer to keep image lean
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    # Virtual framebuffer
     xvfb \
     x11-utils \
-    # Chromium and its runtime dependencies
     chromium \
-    chromium-driver \
-    # ffmpeg with x264 support
     ffmpeg \
-    # Fonts for rendering
     fonts-liberation \
-    fonts-noto \
-    # Network tools
+    fonts-noto-core \
     ca-certificates \
     curl \
-    # Process management
+    wget \
     supervisor \
-    # Python extras
-    python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Python dependencies ────────────────────────────────────────────────────────
@@ -32,8 +23,7 @@ RUN pip install --no-cache-dir \
     playwright==1.44.0 \
     requests==2.31.0
 
-# Install Playwright's bundled Chromium (needed for playwright.chromium.launch)
-# We'll use system chromium but playwright needs its own for headless=False support
+# Install Playwright's bundled Chromium for headless=False support inside Xvfb
 RUN playwright install chromium \
     && playwright install-deps chromium
 
@@ -43,7 +33,7 @@ WORKDIR /app
 COPY stream.py           /app/stream.py
 COPY game.html           /app/game.html
 COPY deathnote_music.mp3 /app/deathnote_music.mp3
-COPY supervisord.conf    /etc/supervisor/conf.d/deathnotе.conf
+COPY supervisord.conf    /etc/supervisor/conf.d/deathnote.conf
 
 # ── Environment ───────────────────────────────────────────────────────────────
 ENV DISPLAY=:99 \
