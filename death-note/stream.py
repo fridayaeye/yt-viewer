@@ -68,34 +68,39 @@ def xvfb_is_running():
         return False
 
 def start_xvfb():
-    """Start Xvfb on :99 1080x1920x24. Returns process or None if already running."""
+    """Wait for supervisor's Xvfb or start our own."""
     os.environ['DISPLAY'] = ':99'
     
-    # Wait for supervisor's Xvfb to be ready (up to 15 seconds)
-    for attempt in range(15):
-        if xvfb_is_running():
-            print("🖥️  Xvfb already running on :99 (started by supervisor)", flush=True)
+    # Wait up to 30 seconds for Xvfb to be available
+    print("🖥️  Waiting for Xvfb on :99...", flush=True)
+    for attempt in range(30):
+        # Check if display is available by looking for lock file or xdpyinfo
+        if os.path.exists('/tmp/.X99-lock') or xvfb_is_running():
+            print(f"✅ Xvfb ready on :99 (attempt {attempt+1})", flush=True)
+            time.sleep(1)  # Give it a moment to stabilize
             return None
-        # Also check if /tmp/.X99-lock exists (Xvfb creates this)
-        if os.path.exists('/tmp/.X99-lock'):
-            time.sleep(1)
-            if xvfb_is_running():
-                print("🖥️  Xvfb ready on :99", flush=True)
-                return None
-        print(f"⏳ Waiting for Xvfb... ({attempt+1}/15)", flush=True)
         time.sleep(1)
     
-    # If supervisor didn't start it, start our own
-    print("🖥️  Starting own Xvfb :99 (1080x1920x24)...", flush=True)
+    # Start our own Xvfb
+    print("🖥️  Starting own Xvfb...", flush=True)
+    # Kill any zombie Xvfb first
+    subprocess.run(['pkill', '-9', 'Xvfb'], capture_output=True)
+    time.sleep(1)
+    try:
+        os.remove('/tmp/.X99-lock')
+    except:
+        pass
+    
     proc = subprocess.Popen([
         'Xvfb', ':99',
         '-screen', '0', '1080x1920x24',
-        '-ac',
-        '+extension', 'GLX',
-    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        '-ac', '+extension', 'GLX',
+        '-nolisten', 'tcp',
+    ], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     time.sleep(3)
     if proc.poll() is not None:
-        print("❌ Xvfb failed to start!", flush=True)
+        stderr = proc.stderr.read().decode(errors='replace')[:200]
+        print(f"❌ Xvfb failed: {stderr}", flush=True)
         sys.exit(1)
     print(f"✅ Xvfb PID {proc.pid}", flush=True)
     return proc
