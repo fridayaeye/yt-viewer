@@ -17,4 +17,5 @@ COPY deathnote_music.mp3 /app/deathnote_music.mp3
 
 ENV PYTHONUNBUFFERED=1
 
+# v2 - force rebuild
 CMD ["python3", "/app/stream.py"]
